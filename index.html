@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Bucket Tracker</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+    h2 {
+      margin-bottom: 20px;
+    }
+    .controls {
+      margin-bottom: 20px;
+    }
+    .controls button { /* Added for spacing global buttons */
+        margin-right: 5px;
+    }
+    .entry-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .entry-row > * {
+      margin-right: 10px;
+    }
+    .name-display {
+      flex-grow: 1;
+      background-color: #f9f9f9;
+      padding: 10px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    button {
+      padding: 6px 12px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    button:disabled {
+        background-color: #ccc;
+        color: #666;
+        cursor: not-allowed;
+    }
+    #addNameBtn {
+      background-color: green;
+      color: white;
+    }
+    #resetBtn {
+      background-color: gray;
+      color: white;
+    }
+    #exportBtn {
+      background-color: teal;
+      color: white;
+    }
+    #undoBtn { /* Style for the new Undo button */
+      background-color: #4682B4; /* Steel Blue */
+      color: white;
+    }
+    .add-bucket {
+      background-color: orange;
+      color: black;
+    }
+    .remove-beer {
+      background-color: red;
+      color: white;
+    }
+    .delete-btn {
+      background-color: #888; /* A slightly darker gray for active delete */
+      color: white;
+    }
+    input.bucket-count {
+      width: 30px;
+      text-align: center;
+    }
+  </style>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#4CAF50">
+</head>
+<body>
+
+<h2>Bucket Tracker</h2>
+<div class="controls">
+  <button id="addNameBtn">Add Name</button>
+  <button id="undoBtn" disabled>Undo Last Change</button>
+  <button id="resetBtn">Reset All</button>
+  <button id="exportBtn">Export CSV</button>
+</div>
+
+<div id="trackerContainer"></div>
+
+<script>
+  const BEERS_PER_BUCKET = 5;
+  const LOCAL_STORAGE_KEY = 'bucketTrackerData';
+  const MAX_HISTORY_SIZE = 3;
+
+  let list = [];
+  let historyStack = [];
+
+  function deepCopy(data) {
+    return JSON.parse(JSON.stringify(data));
+  }
+
+  function saveStateToHistory() {
+    historyStack.push(deepCopy(list));
+    if (historyStack.length > MAX_HISTORY_SIZE) {
+      historyStack.shift();
+    }
+    updateUndoButtonState();
+  }
+
+  function updateUndoButtonState() {
+    const undoBtn = document.getElementById('undoBtn');
+    if (undoBtn) {
+      undoBtn.disabled = historyStack.length === 0;
+    }
+  }
+
+  function loadData() {
+    let data = [];
+    try {
+      const storedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (storedData) {
+        const parsedData = JSON.parse(storedData);
+        if (Array.isArray(parsedData)) {
+          data = parsedData.filter(item =>
+            typeof item === 'object' &&
+            item !== null &&
+            typeof item.name === 'string' &&
+            typeof item.buckets === 'number' &&
+            typeof item.beers === 'number'
+          );
+        } else {
+          console.warn("Stored data was not an array, resetting.");
+          localStorage.removeItem(LOCAL_STORAGE_KEY);
+        }
+      }
+    } catch (e) {
+      console.error("Error parsing data from localStorage:", e);
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+    }
+    return data;
+  }
+
+  function saveData() {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(list));
+    } catch (e) {
+      console.error("Error saving data to localStorage:", e);
+      alert("Warning: Could not save data. Local storage might be full or disabled.");
+    }
+  }
+
+  list = loadData();
+
+  function render() {
+    saveData();
+    updateUndoButtonState();
+
+    const container = document.getElementById('trackerContainer');
+    container.innerHTML = '';
+
+    list.forEach((entry, index) => {
+      const row = document.createElement('div');
+      row.className = 'entry-row';
+
+      const addBucketBtn = document.createElement('button');
+      addBucketBtn.className = 'add-bucket';
+      addBucketBtn.textContent = 'Add Bucket';
+      addBucketBtn.onclick = () => {
+        saveStateToHistory();
+        list[index].buckets += 1;
+        list[index].beers += BEERS_PER_BUCKET;
+        render();
+      };
+
+      const bucketInput = document.createElement('input');
+      bucketInput.className = 'bucket-count';
+      bucketInput.type = 'text';
+      bucketInput.value = list[index].buckets;
+      bucketInput.readOnly = true;
+
+      const nameDisplay = document.createElement('div');
+      nameDisplay.className = 'name-display';
+      // MODIFIED HERE
+      nameDisplay.textContent = `${entry.name} - Beers Left: ${entry.beers}`;
+
+      const removeBeerBtn = document.createElement('button');
+      removeBeerBtn.className = 'remove-beer';
+      removeBeerBtn.textContent = '- Beer';
+      removeBeerBtn.onclick = () => {
+        if (list[index].beers > 0) {
+          saveStateToHistory();
+          list[index].beers -= 1;
+          render();
+        }
+      };
+      removeBeerBtn.disabled = list[index].beers === 0;
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'delete-btn';
+      deleteBtn.textContent = 'Delete';
+      deleteBtn.disabled = list[index].beers > 0;
+      deleteBtn.title = list[index].beers > 0 ? "Cannot delete: beers remaining." : "Delete entry";
+
+      deleteBtn.onclick = () => {
+        if (list[index].beers === 0) {
+          saveStateToHistory();
+          list.splice(index, 1);
+          render();
+        } else {
+          alert("Cannot delete entry with beers remaining.");
+        }
+      };
+
+      row.appendChild(addBucketBtn);
+      row.appendChild(bucketInput);
+      row.appendChild(nameDisplay);
+      row.appendChild(removeBeerBtn);
+      row.appendChild(deleteBtn);
+
+      container.appendChild(row);
+    });
+  }
+
+  document.getElementById('addNameBtn').onclick = () => {
+    const nameInput = prompt("Enter a name:");
+    if (nameInput !== null) {
+      const name = nameInput.trim();
+      if (name) {
+        saveStateToHistory();
+        list.push({ name: name, buckets: 1, beers: BEERS_PER_BUCKET });
+        render();
+      } else {
+        alert("Name cannot be empty or just spaces.");
+      }
+    }
+  };
+
+  document.getElementById('undoBtn').onclick = () => {
+    if (historyStack.length > 0) {
+      list = historyStack.pop();
+      render();
+    }
+  };
+
+  document.getElementById('resetBtn').onclick = () => {
+    if (confirm("Are you sure you want to reset everything? This cannot be undone.")) {
+      list = [];
+      historyStack = [];
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+      render();
+    }
+  };
+
+  document.getElementById('exportBtn').onclick = () => {
+    if (list.length === 0) {
+      alert("No data to export.");
+      return;
+    }
+
+    // MODIFIED HERE
+    let csvContent = "Name,Buckets,Beers Left\n";
+    list.forEach(entry => {
+      const nameField = entry.name.includes(',') ? `"${entry.name}"` : entry.name;
+      csvContent += `${nameField},${entry.buckets},${entry.beers}\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `bucket_tracker_data_${timestamp}.csv`;
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  render();
+</script>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('service-worker.js')
+      .then(reg => console.log("Service Worker Registered", reg))
+      .catch(err => console.error("Service Worker registration failed", err));
+  }
+</script>
+</body>
+</html>
