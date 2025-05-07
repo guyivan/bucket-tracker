@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Bucket Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -14,16 +15,15 @@
     .controls {
       margin-bottom: 20px;
     }
-    .controls button { /* Added for spacing global buttons */
-        margin-right: 5px;
+    .controls button {
+      margin-right: 5px;
     }
     .entry-row {
       display: flex;
       align-items: center;
       margin-bottom: 10px;
-    }
-    .entry-row > * {
-      margin-right: 10px;
+      flex-wrap: wrap;
+      gap: 10px;
     }
     .name-display {
       flex-grow: 1;
@@ -33,16 +33,16 @@
       border: 1px solid #ccc;
     }
     button {
-      padding: 6px 12px;
+      padding: 12px 20px;
+      font-size: 16px;
       border: none;
-      border-radius: 6px;
-      font-size: 14px;
+      border-radius: 8px;
       cursor: pointer;
     }
     button:disabled {
-        background-color: #ccc;
-        color: #666;
-        cursor: not-allowed;
+      background-color: #ccc;
+      color: #666;
+      cursor: not-allowed;
     }
     #addNameBtn {
       background-color: green;
@@ -56,8 +56,8 @@
       background-color: teal;
       color: white;
     }
-    #undoBtn { /* Style for the new Undo button */
-      background-color: #4682B4; /* Steel Blue */
+    #undoBtn {
+      background-color: #4682B4;
       color: white;
     }
     .add-bucket {
@@ -69,16 +69,16 @@
       color: white;
     }
     .delete-btn {
-      background-color: #888; /* A slightly darker gray for active delete */
+      background-color: #888;
       color: white;
     }
     input.bucket-count {
-      width: 30px;
+      width: 40px;
       text-align: center;
+      font-size: 16px;
+      padding: 6px;
     }
   </style>
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#4CAF50">
 </head>
 <body>
 
@@ -113,44 +113,24 @@
   }
 
   function updateUndoButtonState() {
-    const undoBtn = document.getElementById('undoBtn');
-    if (undoBtn) {
-      undoBtn.disabled = historyStack.length === 0;
-    }
+    document.getElementById('undoBtn').disabled = historyStack.length === 0;
   }
 
   function loadData() {
-    let data = [];
     try {
-      const storedData = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (storedData) {
-        const parsedData = JSON.parse(storedData);
-        if (Array.isArray(parsedData)) {
-          data = parsedData.filter(item =>
-            typeof item === 'object' &&
-            item !== null &&
-            typeof item.name === 'string' &&
-            typeof item.buckets === 'number' &&
-            typeof item.beers === 'number'
-          );
-        } else {
-          console.warn("Stored data was not an array, resetting.");
-          localStorage.removeItem(LOCAL_STORAGE_KEY);
-        }
-      }
-    } catch (e) {
-      console.error("Error parsing data from localStorage:", e);
-      localStorage.removeItem(LOCAL_STORAGE_KEY);
+      const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
+      const parsed = JSON.parse(stored);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
     }
-    return data;
   }
 
   function saveData() {
     try {
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(list));
     } catch (e) {
-      console.error("Error saving data to localStorage:", e);
-      alert("Warning: Could not save data. Local storage might be full or disabled.");
+      console.error("LocalStorage error:", e);
     }
   }
 
@@ -185,7 +165,6 @@
 
       const nameDisplay = document.createElement('div');
       nameDisplay.className = 'name-display';
-      // MODIFIED HERE
       nameDisplay.textContent = `${entry.name} - Beers Left: ${entry.beers}`;
 
       const removeBeerBtn = document.createElement('button');
@@ -204,15 +183,11 @@
       deleteBtn.className = 'delete-btn';
       deleteBtn.textContent = 'Delete';
       deleteBtn.disabled = list[index].beers > 0;
-      deleteBtn.title = list[index].beers > 0 ? "Cannot delete: beers remaining." : "Delete entry";
-
       deleteBtn.onclick = () => {
         if (list[index].beers === 0) {
           saveStateToHistory();
           list.splice(index, 1);
           render();
-        } else {
-          alert("Cannot delete entry with beers remaining.");
         }
       };
 
@@ -221,22 +196,16 @@
       row.appendChild(nameDisplay);
       row.appendChild(removeBeerBtn);
       row.appendChild(deleteBtn);
-
       container.appendChild(row);
     });
   }
 
   document.getElementById('addNameBtn').onclick = () => {
-    const nameInput = prompt("Enter a name:");
-    if (nameInput !== null) {
-      const name = nameInput.trim();
-      if (name) {
-        saveStateToHistory();
-        list.push({ name: name, buckets: 1, beers: BEERS_PER_BUCKET });
-        render();
-      } else {
-        alert("Name cannot be empty or just spaces.");
-      }
+    const name = prompt("Enter a name:");
+    if (name) {
+      saveStateToHistory();
+      list.push({ name: name.trim(), buckets: 1, beers: BEERS_PER_BUCKET });
+      render();
     }
   };
 
@@ -248,7 +217,7 @@
   };
 
   document.getElementById('resetBtn').onclick = () => {
-    if (confirm("Are you sure you want to reset everything? This cannot be undone.")) {
+    if (confirm("Are you sure you want to reset everything?")) {
       list = [];
       historyStack = [];
       localStorage.removeItem(LOCAL_STORAGE_KEY);
@@ -261,38 +230,21 @@
       alert("No data to export.");
       return;
     }
-
-    // MODIFIED HERE
-    let csvContent = "Name,Buckets,Beers Left\n";
-    list.forEach(entry => {
-      const nameField = entry.name.includes(',') ? `"${entry.name}"` : entry.name;
-      csvContent += `${nameField},${entry.buckets},${entry.beers}\n`;
+    let csv = "Name,Buckets,Beers Left\\n";
+    list.forEach(e => {
+      csv += `${e.name},${e.buckets},${e.beers}\\n`;
     });
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
-
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `bucket_tracker_data_${timestamp}.csv`;
-
     const a = document.createElement('a');
     a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
+    a.download = `bucket_tracker_${new Date().toISOString().replace(/[:.]/g,'-')}.csv`;
     a.click();
-    document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
 
   render();
 </script>
 
-<script>
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('service-worker.js')
-      .then(reg => console.log("Service Worker Registered", reg))
-      .catch(err => console.error("Service Worker registration failed", err));
-  }
-</script>
 </body>
 </html>
