@@ -2,7 +2,7 @@
   "name": "Bucket Tracker",
   "short_name": "BucketTracker",
   "description": "To track customer usage",
-  "start_url": ".",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#4CAF50",
